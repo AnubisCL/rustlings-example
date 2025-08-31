@@ -6,8 +6,12 @@ mod macros {
             println!("Check out my macro!");
         };
     }
+    
+    // 导出宏
+    pub(crate) use my_macro;
 }
 
+use macros::my_macro as mm;
 fn main() {
-    my_macro!();
+    mm!();
 }
