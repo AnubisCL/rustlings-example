@@ -1,4 +1,5 @@
 use std::{sync::mpsc, thread, time::Duration};
+use std::sync::{Arc, RwLock};
 
 struct Queue {
     first_half: Vec<u32>,
@@ -15,23 +16,41 @@ impl Queue {
 }
 
 fn send_tx(q: Queue, tx: mpsc::Sender<u32>) {
+    let rw_q = Arc::new(RwLock::new(q));
+    let tx = Arc::new(RwLock::new(tx));
     // TODO: We want to send `tx` to both threads. But currently, it is moved
+    let mut handles = Vec::new();
+    
+    
     // into the first thread. How could you solve this problem?
-    thread::spawn(move || {
-        for val in q.first_half {
+    let q1 = Arc::clone(&rw_q);
+    let tx1 = Arc::clone(&tx);
+    let t1 = thread::spawn(move || {
+        let qq1 = q1.read().unwrap();
+        let rw_tx_m = tx1.write().unwrap();
+        for val in &qq1.first_half {
             println!("Sending {val:?}");
-            tx.send(val).unwrap();
+            rw_tx_m.send(*val).unwrap();
             thread::sleep(Duration::from_millis(250));
         }
     });
+    handles.push(t1);
+    let q2 = Arc::clone(&rw_q);
+    let tx2 = Arc::clone(&tx);
+    let t2 = thread::spawn(move || {
+        let qq2 = q2.read().unwrap();
+        let rw_tx_m = tx2.write().unwrap();
+        for val in &qq2.second_half {
+            println!("Sending {val:?}");
+            rw_tx_m.send(*val).unwrap();
+            thread::sleep(Duration::from_millis(250));
+        }
+    });
+    handles.push(t2);
 
-    thread::spawn(move || {
-        for val in q.second_half {
-            println!("Sending {val:?}");
-            tx.send(val).unwrap();
-            thread::sleep(Duration::from_millis(250));
-        }
-    });
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }
 
 fn main() {
